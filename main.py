@@ -1,10 +1,14 @@
-# create a fastapi main.py file a with cors middleware and get rooutes from routes folder
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 from routes.messages import router as message_router
 from routes.users import router as user_router
+from db.connection import Base, engine
 
 app = FastAPI()
+
+
+Base.metadata.create_all(bind=engine)
 
 app.include_router(user_router)
 app.include_router(message_router)
@@ -22,5 +26,7 @@ app.add_middleware(
 )
 
 
-
-
+if __name__ == "__main__":
+    import uvicorn
+    port = 5000
+    uvicorn.run(app, host="0.0.0.0", port=port)
