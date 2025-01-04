@@ -1,22 +1,35 @@
-# create a users router to create, get and login users
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from db.connection import get_db
+from models.user import User
+from schemas.user import UserCreate, UserLogin, UserResponse
+from typing import List
 
 router = APIRouter()
 
-@router.get("/users")
-async def get_users():
-    return {"users": "This is a list of users"}
+@router.get("/users", response_model=List[UserResponse])
+async def get_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
 
-@router.get("/users/{user_id}")
-async def get_user(user_id: int):
-    return {"user_id": user_id}
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
 
-@router.post("/users")
-async def create_user():
-    return {"user": "User has been created"}
+@router.post("/users", response_model=UserResponse)
+async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = User(name=user.name, fullname=user.fullname, password=user.password)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
-@router.post("/users/login")
-async def login_user():
-    return {"user": "User has been logged in"}
-
+@router.post("/users/login", response_model=UserResponse)
+async def login_user(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(User).filter(User.name == user.name).first()
+    if db_user is None or db_user.password != user.password:
+        raise HTTPException(status_code=400, detail="Invalid username or password")
+    return db_user
