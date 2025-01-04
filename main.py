@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from routes.messages import router as message_router
-from routes.users import router as user_router
+from routes.message import router as message_router
+from routes.user import router as user_router
 from db.connection import Base, engine
 
 app = FastAPI()
