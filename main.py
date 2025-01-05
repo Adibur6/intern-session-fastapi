@@ -5,13 +5,15 @@ from routes.message import router as message_router
 from routes.user import router as user_router
 from db.connection import Base, engine
 
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI()
 
 
-Base.metadata.create_all(bind=engine)
-
 app.include_router(user_router)
 app.include_router(message_router)
+
+
 
 origins = [
     "http://localhost"

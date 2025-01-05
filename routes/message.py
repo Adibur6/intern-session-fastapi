@@ -6,11 +6,13 @@ from models.user import User
 from schemas.message import MessageCreate, MessageUpdate, MessageResponse
 from typing import List
 from auth.jwt_handler import decode_access_token
+import logging
 
 router = APIRouter()
 
 def get_current_user(authorization: str = Header(...), db: Session = Depends(get_db)):
     try:
+        logging.info(f"Authorization: {authorization}")
         scheme, token = authorization.split()
         if scheme.lower() != "bearer":
             raise HTTPException(status_code=401, detail="Invalid authentication scheme")
@@ -27,6 +29,8 @@ def get_current_user(authorization: str = Header(...), db: Session = Depends(get
 
 @router.get("/messages", response_model=List[MessageResponse])
 async def get_messages(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    logging.info(f"Current user: {current_user.id}")
+
     messages = db.query(Message).filter((Message.sender_id == current_user.id) | (Message.receiver_id == current_user.id)).all()
     return messages
 
