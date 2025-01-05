@@ -5,15 +5,17 @@ from models.message import Message
 from models.user import User
 from schemas.message import MessageCreate, MessageUpdate, MessageResponse
 from typing import List
+from typing_extensions import Annotated
 from auth.jwt_handler import decode_access_token
+from services.message import MessageService
 import logging
 
 router = APIRouter()
 
-def get_current_user(authorization: str = Header(...), db: Session = Depends(get_db)):
+def get_current_user(token: str, db: Session):
     try:
-        logging.info(f"Authorization: {authorization}")
-        scheme, token = authorization.split()
+        logging.info(f"token: {token}")
+        scheme, token = token.split()
         if scheme.lower() != "bearer":
             raise HTTPException(status_code=401, detail="Invalid authentication scheme")
         payload = decode_access_token(token)
@@ -28,42 +30,32 @@ def get_current_user(authorization: str = Header(...), db: Session = Depends(get
         raise HTTPException(status_code=401, detail="Invalid token")
 
 @router.get("/messages", response_model=List[MessageResponse])
-async def get_messages(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    logging.info(f"Current user: {current_user.id}")
-
-    messages = db.query(Message).filter((Message.sender_id == current_user.id) | (Message.receiver_id == current_user.id)).all()
+async def get_messages(token: Annotated[str,Header()], db: Session = Depends(get_db)):
+    logging.info(f"Current user: {token}")
+    current_user = get_current_user(token, db)
+    messages = MessageService.get_messages(current_user, db)
     return messages
 
 @router.get("/messages/{message_id}", response_model=MessageResponse)
-async def get_message(message_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    message = db.query(Message).filter(Message.id == message_id).first()
-    if message is None or (message.sender_id != current_user.id and message.receiver_id != current_user.id):
-        raise HTTPException(status_code=404, detail="Message not found or access denied")
+async def get_message(message_id: int, token: Annotated[str,Header()], db: Session = Depends(get_db)):
+    current_user = get_current_user(token, db)
+    message = MessageService.get_message(message_id, current_user, db)
     return message
 
 @router.post("/messages", response_model=MessageResponse)
-async def create_message(message: MessageCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_message = Message(content=message.content, sender_id=current_user.id, receiver_id=message.receiver_id)
-    db.add(db_message)
-    db.commit()
-    db.refresh(db_message)
+async def create_message(message: MessageCreate, token: Annotated[str,Header()], db: Session = Depends(get_db)):
+    current_user = get_current_user(token, db)
+    db_message = MessageService.create_message(message, current_user, db)
     return db_message
 
 @router.patch("/messages/{message_id}", response_model=MessageResponse)
-async def update_message(message_id: int, message: MessageUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_message = db.query(Message).filter(Message.id == message_id).first()
-    if db_message is None or db_message.sender_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Message not found or access denied")
-    db_message.content = message.content
-    db.commit()
-    db.refresh(db_message)
+async def update_message(message_id: int, message: MessageUpdate, token: Annotated[str,Header()], db: Session = Depends(get_db)):
+    current_user = get_current_user(token, db)
+    db_message = MessageService.update_message(message_id, message, current_user, db)
     return db_message
 
 @router.delete("/messages/{message_id}", response_model=MessageResponse)
-async def delete_message(message_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_message = db.query(Message).filter(Message.id == message_id).first()
-    if db_message is None or db_message.sender_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Message not found or access denied")
-    db.delete(db_message)
-    db.commit()
+async def delete_message(message_id: int, token: Annotated[str,Header()], db: Session = Depends(get_db)):
+    current_user = get_current_user(token, db)
+    db_message = MessageService.delete_message(message_id, current_user, db)
     return db_message
